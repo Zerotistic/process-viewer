@@ -12,7 +12,6 @@
 
 BOOL SearchTokenGroupsForSID ( DWORD processID ) 
 {
-	HANDLE pid = (HANDLE)processID;
 	DWORD i, dwSize = 0, dwResult = 0;
 	HANDLE hToken;
 	PTOKEN_GROUPS pGroupInfo;
@@ -22,9 +21,11 @@ BOOL SearchTokenGroupsForSID ( DWORD processID )
 	PSID pSID = NULL;
 	SID_IDENTIFIER_AUTHORITY SIDAuth = SECURITY_NT_AUTHORITY;
 	   
+	HANDLE processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, processID);
+
 	// Open a handle to the access token for the calling process.
 	// TOKEN_ADJUST_PRIVILEGES |
-	if (!OpenProcessToken( pid, TOKEN_QUERY, &hToken )) 
+	if (!OpenProcessToken( processHandle, TOKEN_QUERY, &hToken )) 
 	{
 		printf( "OpenProcessToken Error %u\n", GetLastError() );
 		return FALSE;
@@ -67,7 +68,6 @@ BOOL SearchTokenGroupsForSID ( DWORD processID )
 	{
 		if ( EqualSid(pSID, pGroupInfo->Groups[i].Sid) ) 
 		{
-
 			// Lookup the account name and print it.
 			dwSize = MAX_NAME;
 			if( !LookupAccountSid( NULL, pGroupInfo->Groups[i].Sid,
