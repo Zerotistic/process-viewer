@@ -5,10 +5,55 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <tlhelp32.h>
+#include <tchar.h>
 
 
 #define MAX_NAME 256
 
+
+BOOL ListProcessThreads( DWORD dwOwnerPID ) 
+{ 
+	HANDLE hThreadSnap = INVALID_HANDLE_VALUE; 
+	THREADENTRY32 te32; 
+
+	// Take a snapshot of all running threads  
+	hThreadSnap = CreateToolhelp32Snapshot( TH32CS_SNAPTHREAD, 0 ); 
+	if( hThreadSnap == INVALID_HANDLE_VALUE ) 
+		return( FALSE ); 
+
+	// Fill in the size of the structure before using it. 
+	te32.dwSize = sizeof(THREADENTRY32 ); 
+
+	// Retrieve information about the first thread,
+	// and exit if unsuccessful
+	if( !Thread32First( hThreadSnap, &te32 ) ) 
+	{
+		printf( "Thread32First Error %u", GetLastError() ); // Show cause of failure
+		CloseHandle( hThreadSnap ); // Must clean up the snapshot object!
+		return( FALSE );
+	}
+
+	// Now walk the thread list of the system,
+	// and display information about each thread
+	// associated with the specified process
+	do 
+	{ 
+		if( te32.th32OwnerProcessID == dwOwnerPID )
+		{
+			//int threadPid = GetThreadId(te32.th32ThreadID);
+			_tprintf( TEXT("\n     Thread Owner ID      = %d"), te32.th32OwnerProcessID );
+			_tprintf( TEXT("\n     Thread ID            = 0x%08X"), te32.th32ThreadID );
+			_tprintf( TEXT("\n     Kernel Base Priority = %d\n"), te32.tpBasePri );  
+		}
+	} while( Thread32Next(hThreadSnap, &te32 ) );
+
+	_tprintf( TEXT("\n"));
+
+	//  Don't forget to clean up the snapshot object.
+	CloseHandle( hThreadSnap );
+	return( TRUE );
+}
 
 BOOL SearchTokenGroupsForSID ( DWORD processID ) 
 {
@@ -83,17 +128,17 @@ BOOL SearchTokenGroupsForSID ( DWORD processID )
 					return FALSE;
 				}
 			}
-			printf( "Current user is a member of the %s\\%s group\n", 
+			printf( "Process owner is a member of the %s\\%s group\n", 
 					lpDomain, lpName );
 
 			// Find out whether the SID is enabled in the token.
 			if ( pGroupInfo->Groups[i].Attributes & SE_GROUP_ENABLED )
-				printf("The group SID is enabled.\n");
+				printf("The group SID is enabled.\n\n");
 			else if ( pGroupInfo->Groups[i].Attributes & 
 							  SE_GROUP_USE_FOR_DENY_ONLY )
-				printf("The group SID is a deny-only SID.\n");
+				printf("The group SID is a deny-only SID.\n\n");
 			else 
-				printf("The group SID is not enabled.\n");
+				printf("The group SID is not enabled.\n\n");
 		}
 	}
 
@@ -128,9 +173,14 @@ void PrintProcessNameAndID( DWORD processID )
 	}
 
 	// Print the process name and identifier.
+	TCHAR pidNameUnknown[10] = TEXT("<unknown>");
+	if(strcmp(szProcessName, pidNameUnknown) == 0) 
+	{
+		return;
+	}
+	_tprintf( TEXT("%s  (PID: %u)"), szProcessName, processID );
+	ListProcessThreads(processID);
 	SearchTokenGroupsForSID( processID );
-	_tprintf( TEXT("%s  (PID: %u)\n"), szProcessName, processID );
-
 	// Release the handle to the process.
 	CloseHandle( hProcess );
 }
